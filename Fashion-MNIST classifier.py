@@ -14,14 +14,13 @@ class MNISTClass(nn.Module):
         super(MNISTClass, self).__init__()
         self.conv1 = nn.Conv2d(1, 15, kernel_size=3, stride=1)
         self.conv2 = nn.Conv2d(15, 30, kernel_size=3, stride=2)
-        self.dropout = nn.Dropout2d()
         self.fc1 = nn.Linear(1080, 100)
         self.fc2 = nn.Linear(100, 10)
 
     def forward(self, x):
         # conv1(kernel=3, filters=15) 28x28x1 -> 26x26x15
         x = F.relu(self.conv1(x))
-
+        
         # conv2(kernel=3, filters=20) 26x26x15 -> 13x13x30
         # max_pool(kernel=2) 13x13x30 -> 6x6x30
         x = F.relu(F.max_pool2d(self.conv2(x), 2, stride=2))
@@ -43,8 +42,10 @@ def test_data_recorder(i, pred, writer, target, data, output, epoch):
     global step
     labels_dict = {0: 'T-shirt/top', 1: 'Trouser', 2: 'Pullover', 3: 'Dress', 4: 'Coat', 5: 'Sandal', 6: 'Shirt',
                    7: 'Sneaker', 8: 'Bag', 9: 'Ankle boot'}
-    denormalize = transforms.Normalize((-1,), (1 / 0.5,))  # to show the images on tensorboard, undo normalization
-    # Show some miss classified images in tensorboard
+    # Undo normalization to show the images on Tensorboard
+    denormalize = transforms.Normalize((-1,), (1 / 0.5,))
+    
+    # Show some miss classified images in Tensorboard
     if i < 10 and target.data[pred != target.data].nelement() > 0:
         for inx, d in enumerate(data[pred != target.data]):
             img_name = 'Test-misclassified/Prediction-{}/Label-{}_Epoch-{}_{}/'.format(
@@ -53,16 +54,18 @@ def test_data_recorder(i, pred, writer, target, data, output, epoch):
             writer.add_image(img_name, denormalize(d), epoch)
             i += 1
 
-    # Record for histograms:
+    # Record histograms:
+    # Randomly pick batches to record (test dataset size = 10000, batch size 32)
     if epoch == 0 and random.randint(1, 100) < 4 or epoch > 0 and \
             random.randint(1, 100) < 2 or epoch == 0 and i < 2:
-        # randomly pick batches to record (test dataset size = 10000, batch size 32)
-        image_max, label_conf = [[], [[] for x in range(32)]]
+        
+        image_max, label_conf = [[], [[] for x in range(32)]]    
         for t in range(output.size(0)):  # go over all tensors
             prob_out = F.softmax(output[t], dim=0)
             image_max.append(prob_out.max().item())
             for l in range(output.size(1)):  # go over all labels
                 label_conf[l].append(prob_out[l].item())
+        
         writer.add_histogram('Max confidence per image', np.array(image_max), step, bins='auto')
         for l in range(output.size(1)):
             writer.add_histogram('Confidence per label, label {}'.format(labels_dict[l]),
@@ -94,24 +97,27 @@ def train(model, device, train_loader, opt, epoch, writer):
 
 
 def test(model, device, test_loader, epoch, writer):
-    model.eval()
+    model.eval() # SWITCH TO TEST MODE
     i, test_loss, correct, n = [0, 0, 0, 0]
 
     with torch.no_grad():
-        print('Recording histograms for epoch 0')
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
             test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
             pred = output.data.max(1)[1]  # get the index of the max log-probability
             correct += pred.eq(target.data).cpu().sum()
+            
+            # Record images and data into the writer:
             test_data_recorder(i, pred, writer, target, data, output, epoch)
+            
     test_loss /= len(test_loader)  # loss function already averages over batch size
     accuracy = 100. * correct / len(test_loader.dataset)
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         accuracy))
-    # Record loss and accuracy
+    
+    # Record loss and accuracy into the writer
     writer.add_scalar('Test/Loss', test_loss, epoch)
     writer.add_scalar('Test/Accuracy', accuracy, epoch)
     writer.flush()
@@ -121,52 +127,42 @@ def main():
     mnist_path = '/storage/data/Fashion_MNIST/'
     PATH_to_log_dir = '/storage/Blog/TensorBoard/logdir/'
 
-    # Declare TensorBoard writer
+    # Declare Tensorboard writer
     timestr = time.strftime("%Y%m%d_%H%M%S")
     writer = SummaryWriter(PATH_to_log_dir + timestr)
-    print('Tensorboard and log file are recording into folder:' + timestr)
+    print('Tensorboard is recording into folder: ' + PATH_to_log_dir + timestr)
 
     transform = transforms.Compose([transforms.ToTensor(),
                                     transforms.Normalize((0.5,), (0.5,)),
                                     ])
-
     # Download data and create datasets
     trainset = datasets.FashionMNIST(mnist_path, download=True, train=True, transform=transform)
     valset = datasets.FashionMNIST(mnist_path, download=True, train=False, transform=transform)
 
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=32, shuffle=True)
     valloader = torch.utils.data.DataLoader(valset, batch_size=32, shuffle=True)
-
-    '''Dataset inspection:'''
     dataiter = iter(trainloader)
     images, labels = dataiter.next()
 
-
-    # visualize the grid
+    # To inspect the input dataset visualize the grid
     grid = utils.make_grid(images)
     writer.add_image('Dataset/Inspect input grid', grid, 0)
     writer.close()
 
-    '''Create model and optimizer'''
+    # Create model and optimizer
     model = MNISTClass()
     opt = optim.SGD(model.parameters(), lr=0.01, momentum=0.5)
 
-    # '''Model graph inspection'''
-    # writer.add_graph(model, images)
-    # writer.flush()
-    # writer.close()
-    # https://discuss.pytorch.org/t/the-model-does-not-appear-in-the-graphs-with-tensorboard/53572
-
     '''Run!!'''
     device = "cpu"
-    global step      # for histogram recording
+    global step      # for histogram stack recording
     step = 0
     for epoch in range(0, 10):
         print("Epoch %d" % epoch)
         train(model, device, trainloader, opt, epoch, writer)
         test(model, device, valloader, epoch, writer)
         writer.close()
-    print('Tensorboard and log file are recording into folder:' + timestr)
+    print('Tensorboard is recording into folder: ' + PATH_to_log_dir + timestr)
 
 
 if __name__ == '__main__':
