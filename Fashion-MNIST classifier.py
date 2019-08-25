@@ -92,6 +92,7 @@ def train(model, device, train_loader, opt, epoch, writer):
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_id * len(data), len(train_loader.dataset),
                        100. * batch_id / len(train_loader), loss.item()))
+    # Record loss into the writer
     writer.add_scalar('Train/Loss', loss.item(), epoch)
     writer.flush()
 
