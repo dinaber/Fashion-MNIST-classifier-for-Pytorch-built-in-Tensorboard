@@ -45,7 +45,7 @@ def test_data_recorder(i, pred, writer, target, data, output, epoch):
     # Undo normalization to show the images on Tensorboard
     denormalize = transforms.Normalize((-1,), (1 / 0.5,))
     
-    # Show some miss classified images in Tensorboard
+    # Show some misclassified images in Tensorboard
     if i < 10 and target.data[pred != target.data].nelement() > 0:
         for inx, d in enumerate(data[pred != target.data]):
             img_name = 'Test-misclassified/Prediction-{}/Label-{}_Epoch-{}_{}/'.format(
