@@ -76,6 +76,7 @@ def test_data_recorder(i, pred, writer, target, data, output, epoch):
 
 
 def train(model, device, train_loader, opt, epoch, writer):
+    model.to(device)
     model.train()
 
     for batch_id, (data, target) in enumerate(train_loader):
@@ -98,6 +99,7 @@ def train(model, device, train_loader, opt, epoch, writer):
 
 
 def test(model, device, test_loader, epoch, writer):
+    model.to(device)
     model.eval() # SWITCH TO TEST MODE
     i, test_loss, correct, n = [0, 0, 0, 0]
 
@@ -155,7 +157,7 @@ def main():
     opt = optim.SGD(model.parameters(), lr=0.01, momentum=0.5)
 
     '''Run!!'''
-    device = "cpu"
+    device = "cuda"
     global step      # for histogram stack recording
     step = 0
     for epoch in range(0, 10):
