@@ -157,7 +157,7 @@ def main():
     opt = optim.SGD(model.parameters(), lr=0.01, momentum=0.5)
 
     '''Run!!'''
-    device = "cuda"
+    device = "cpu"
     global step      # for histogram stack recording
     step = 0
     for epoch in range(0, 10):
